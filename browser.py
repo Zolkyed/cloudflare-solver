@@ -4,7 +4,7 @@ import subprocess
 import time
 from typing import Optional
 
-import nodriver as uc
+import zendriver as zd
 
 
 def find_chrome() -> str:
@@ -64,7 +64,7 @@ def ensure_display() -> Optional[subprocess.Popen]:
 
 async def start_browser():
     """Start a browser instance using the shared project configuration."""
-    return await uc.start(
+    return await zd.start(
         browser_executable_path=find_chrome(),
         headless=False,
         user_data_dir=get_profile_dir(),

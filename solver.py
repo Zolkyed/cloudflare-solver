@@ -1,13 +1,26 @@
 import asyncio
 import json
 import random
+from dataclasses import dataclass
 from typing import Optional
 
 from browser import ensure_display, start_browser
 
 
-async def _solve(sitekey: str, siteurl: str, timeout: int) -> str:
+@dataclass
+class SolveResult:
+    token: str
+    cookies: list[dict[str, str]]
+
+
+def _serialize_cookies(raw_cookies) -> list[dict[str, str]]:
+    return [{"name": cookie.name, "value": cookie.value} for cookie in raw_cookies]
+
+
+async def _solve(sitekey: str, siteurl: str, timeout: int) -> SolveResult:
     browser = await start_browser()
+    token: Optional[str] = None
+    raw_cookies = []
 
     try:
         page = await browser.get(siteurl)
@@ -84,7 +97,10 @@ async def _solve(sitekey: str, siteurl: str, timeout: int) -> str:
         # Check if already auto-solved (invisible widget)
         token = await get_token()
         if token:
-            return token
+            raw_cookies = await browser.cookies.get_all()
+            return SolveResult(
+                token=token, cookies=_serialize_cookies(raw_cookies)
+            )
 
         # Wait up to 10s for the visible checkbox iframe to appear
         rect = None
@@ -119,16 +135,17 @@ async def _solve(sitekey: str, siteurl: str, timeout: int) -> str:
 
             await asyncio.sleep(0.3)
 
+        raw_cookies = await browser.cookies.get_all()
     finally:
         browser.stop()
 
     if not token:
         raise TimeoutError(f"Turnstile token not obtained within {timeout}s")
 
-    return token
+    return SolveResult(token=token, cookies=_serialize_cookies(raw_cookies))
 
 
-def solve(sitekey: str, siteurl: str, timeout: int = 45) -> str:
+def solve(sitekey: str, siteurl: str, timeout: int = 45) -> SolveResult:
     import warnings
 
     with warnings.catch_warnings():
@@ -145,8 +162,8 @@ if __name__ == "__main__":
 
     xvfb = ensure_display()
     try:
-        token = solve(sys.argv[1], sys.argv[2])
-        print(token)
+        result = solve(sys.argv[1], sys.argv[2])
+        print(result.token)
     finally:
         if xvfb:
             xvfb.terminate()

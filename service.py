@@ -78,10 +78,17 @@ class Handler(BaseHTTPRequestHandler):
                 f"[service] solving sitekey={sitekey!r} url={siteurl!r} "
                 f"(active={_active_count}/{MAX_WORKERS})"
             )
-            token = solve(sitekey, siteurl, timeout=timeout)
+            result = solve(sitekey, siteurl, timeout=timeout)
             elapsed = round(time.time() - t0, 2)
-            print(f"[service] solved in {elapsed}s  token={token[:20]}...")
-            self.send_json(200, {"token": token, "elapsed": elapsed})
+            print(f"[service] solved in {elapsed}s  token={result.token[:20]}...")
+            self.send_json(
+                200,
+                {
+                    "token": result.token,
+                    "cookies": result.cookies,
+                    "elapsed": elapsed,
+                },
+            )
         except Exception as exc:
             elapsed = round(time.time() - t0, 2)
             print(f"[service] error after {elapsed}s: {exc}")
