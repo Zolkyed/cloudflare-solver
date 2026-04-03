@@ -3,7 +3,7 @@ import json
 import random
 from dataclasses import dataclass
 from typing import Optional
-
+from urllib.parse import urlparse
 from browser import ensure_display, start_browser
 
 
@@ -13,8 +13,32 @@ class SolveResult:
     cookies: list[dict[str, str]]
 
 
-def _serialize_cookies(raw_cookies) -> list[dict[str, str]]:
-    return [{"name": cookie.name, "value": cookie.value} for cookie in raw_cookies]
+def _cookie_matches_site(cookie, siteurl: str) -> bool:
+    parsed = urlparse(siteurl)
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return False
+
+    cookie_domain = (getattr(cookie, "domain", "") or "").lower().lstrip(".")
+    if not cookie_domain:
+        return False
+
+    return hostname == cookie_domain or hostname.endswith("." + cookie_domain)
+
+
+def _serialize_cookies(raw_cookies, siteurl: str) -> list[dict[str, str]]:
+    cookies = []
+
+    for cookie in raw_cookies:
+        if _cookie_matches_site(cookie, siteurl):
+            cookies.append(
+                {
+                    "name": cookie.name,
+                    "value": cookie.value,
+                }
+            )
+
+    return cookies
 
 
 async def _solve(sitekey: str, siteurl: str, timeout: int) -> SolveResult:
@@ -99,7 +123,7 @@ async def _solve(sitekey: str, siteurl: str, timeout: int) -> SolveResult:
         if token:
             raw_cookies = await browser.cookies.get_all()
             return SolveResult(
-                token=token, cookies=_serialize_cookies(raw_cookies)
+                token=token, cookies=_serialize_cookies(raw_cookies, siteurl)
             )
 
         # Wait up to 10s for the visible checkbox iframe to appear
@@ -142,7 +166,7 @@ async def _solve(sitekey: str, siteurl: str, timeout: int) -> SolveResult:
     if not token:
         raise TimeoutError(f"Turnstile token not obtained within {timeout}s")
 
-    return SolveResult(token=token, cookies=_serialize_cookies(raw_cookies))
+    return SolveResult(token=token, cookies=_serialize_cookies(raw_cookies, siteurl))
 
 
 def solve(sitekey: str, siteurl: str, timeout: int = 45) -> SolveResult:
@@ -155,15 +179,22 @@ def solve(sitekey: str, siteurl: str, timeout: int = 45) -> SolveResult:
 
 if __name__ == "__main__":
     import sys
+    import json
 
     if len(sys.argv) < 3:
-        print("Usage: python solver.py <sitekey> <siteurl>")
+        print(json.dumps({"error": "Usage: python solver.py <sitekey> <siteurl>"}))
         sys.exit(1)
 
     xvfb = ensure_display()
     try:
         result = solve(sys.argv[1], sys.argv[2])
-        print(result.token)
+
+        print(json.dumps({"token": result.token, "cookies": result.cookies}))
+
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}))
+        sys.exit(1)
+
     finally:
         if xvfb:
             xvfb.terminate()
