@@ -1,0 +1,15 @@
+@host = 127.0.0.1
+@port = 8191
+@baseUrl = http://{{host}}:{{port}}
+
+GET {{baseUrl}}/health
+
+###
+
+POST {{baseUrl}}/solve
+Content-Type: application/json
+
+{
+  "sitekey": "0x4AAAAAAB4S-Cq-7quNHQy8",
+  "siteurl": "https://krakenfiles.com/view/6JFpaEa5aW/file.html"
+}
