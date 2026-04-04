@@ -10,7 +10,7 @@ from browser import ensure_display, start_browser
 @dataclass
 class SolveResult:
     token: Optional[str]
-    cookies: list[dict[str, str]]
+    cookies: dict[str, str]
 
 
 def _cookie_matches_site(cookie, siteurl: str) -> bool:
@@ -26,17 +26,12 @@ def _cookie_matches_site(cookie, siteurl: str) -> bool:
     return hostname == cookie_domain or hostname.endswith("." + cookie_domain)
 
 
-def _serialize_cookies(raw_cookies, siteurl: str) -> list[dict[str, str]]:
-    cookies = []
+def _serialize_cookies(raw_cookies, siteurl: str) -> dict[str, str]:
+    cookies = {}
 
     for cookie in raw_cookies:
         if _cookie_matches_site(cookie, siteurl):
-            cookies.append(
-                {
-                    "name": cookie.name,
-                    "value": cookie.value,
-                }
-            )
+            cookies[cookie.name] = cookie.value
 
     return cookies
 
