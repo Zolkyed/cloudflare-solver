@@ -5,6 +5,7 @@ from socketserver import ThreadingMixIn
 import json
 import os
 from browser import ensure_display
+from debug import fetch_debug_payload
 from solver import solve
 
 PORT = int(os.environ.get("PORT", 8191))
@@ -114,8 +115,20 @@ class Handler(BaseHTTPRequestHandler):
                         "queued": _queued_count,
                     },
                 )
+        elif self.path == "/debug":
+            t0 = time.time()
+            try:
+                print("[service] fetching debug payload")
+                payload = fetch_debug_payload()
+                elapsed = round(time.time() - t0, 2)
+                print(f"[service] fetched debug payload in {elapsed}s")
+                self.send_json(200, payload)
+            except Exception as exc:
+                elapsed = round(time.time() - t0, 2)
+                print(f"[service] debug error after {elapsed}s: {exc}")
+                self.send_json(500, {"error": str(exc)})
         else:
-            self.send_json(404, {"error": "use POST /solve"})
+            self.send_json(404, {"error": "use POST /solve or GET /health or GET /debug"})
 
 
 if __name__ == "__main__":

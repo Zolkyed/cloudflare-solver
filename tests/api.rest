@@ -4,6 +4,11 @@
 
 GET {{baseUrl}}/health
 
+
+###
+
+GET {{baseUrl}}/debug
+
 ###
 
 POST {{baseUrl}}/solve
