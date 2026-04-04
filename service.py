@@ -48,12 +48,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "invalid JSON"})
             return
 
-        sitekey = payload.get("sitekey", "").strip()
+        sitekey = payload.get("sitekey", "").strip() or None
         siteurl = payload.get("siteurl", "").strip()
         timeout = int(payload.get("timeout", 45))
 
-        if not sitekey or not siteurl:
-            self.send_json(400, {"error": "sitekey and siteurl are required"})
+        if not siteurl:
+            self.send_json(400, {"error": "siteurl is required"})
             return
 
         global _active_count, _queued_count
@@ -61,7 +61,7 @@ class Handler(BaseHTTPRequestHandler):
         with _count_lock:
             _queued_count += 1
         print(
-            f"[service] queued — sitekey={sitekey!r} url={siteurl!r} "
+            f"[service] queued — has_sitekey={bool(sitekey)} url={siteurl!r} "
             f"(active={_active_count}/{MAX_WORKERS} queued={_queued_count})"
         )
 
@@ -75,12 +75,16 @@ class Handler(BaseHTTPRequestHandler):
         t0 = time.time()
         try:
             print(
-                f"[service] solving sitekey={sitekey!r} url={siteurl!r} "
+                f"[service] solving has_sitekey={bool(sitekey)} url={siteurl!r} "
                 f"(active={_active_count}/{MAX_WORKERS})"
             )
-            result = solve(sitekey, siteurl, timeout=timeout)
+            result = solve(siteurl, sitekey=sitekey, timeout=timeout)
             elapsed = round(time.time() - t0, 2)
-            print(f"[service] solved in {elapsed}s  token={result.token[:20]}...")
+            token_preview = f"{result.token[:20]}..." if result.token else None
+            print(
+                f"[service] solved in {elapsed}s  token={token_preview} "
+                f"cookies={len(result.cookies)}"
+            )
             self.send_json(
                 200,
                 {

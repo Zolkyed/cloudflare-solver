@@ -9,7 +9,7 @@ from browser import ensure_display, start_browser
 
 @dataclass
 class SolveResult:
-    token: str
+    token: Optional[str]
     cookies: list[dict[str, str]]
 
 
@@ -40,14 +40,19 @@ def _serialize_cookies(raw_cookies, siteurl: str) -> list[dict[str, str]]:
 
     return cookies
 
-
-async def _solve(sitekey: str, siteurl: str, timeout: int) -> SolveResult:
+async def _solve(sitekey: Optional[str], siteurl: str, timeout: int) -> SolveResult:
     browser = await start_browser()
     token: Optional[str] = None
     raw_cookies = []
 
     try:
         page = await browser.get(siteurl)
+        if not sitekey:
+            raw_cookies = await browser.cookies.get_all()
+            return SolveResult(
+                token=None, cookies=_serialize_cookies(raw_cookies, siteurl)
+            )
+
         await asyncio.sleep(random.uniform(2.0, 3.0))
 
         # Inject widget into the live page DOM
@@ -169,7 +174,7 @@ async def _solve(sitekey: str, siteurl: str, timeout: int) -> SolveResult:
     return SolveResult(token=token, cookies=_serialize_cookies(raw_cookies, siteurl))
 
 
-def solve(sitekey: str, siteurl: str, timeout: int = 45) -> SolveResult:
+def solve(siteurl: str, sitekey: Optional[str] = None, timeout: int = 45) -> SolveResult:
     import warnings
 
     with warnings.catch_warnings():
@@ -181,13 +186,19 @@ if __name__ == "__main__":
     import sys
     import json
 
-    if len(sys.argv) < 3:
-        print(json.dumps({"error": "Usage: python solver.py <sitekey> <siteurl>"}))
+    if len(sys.argv) < 2:
+        print(
+            json.dumps(
+                {"error": "Usage: python solver.py <siteurl> [sitekey]"}
+            )
+        )
         sys.exit(1)
 
     xvfb = ensure_display()
     try:
-        result = solve(sys.argv[1], sys.argv[2])
+        siteurl = sys.argv[1]
+        sitekey = sys.argv[2] if len(sys.argv) > 2 else None
+        result = solve(siteurl, sitekey=sitekey)
 
         print(json.dumps({"token": result.token, "cookies": result.cookies}))
 

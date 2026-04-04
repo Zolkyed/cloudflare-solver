@@ -13,3 +13,12 @@ Content-Type: application/json
   "sitekey": "0x4AAAAAAB4S-Cq-7quNHQy8",
   "siteurl": "https://krakenfiles.com/view/6JFpaEa5aW/file.html"
 }
+
+###
+
+POST {{baseUrl}}/solve
+Content-Type: application/json
+
+{
+  "siteurl": "https://krakenfiles.com/view/6JFpaEa5aW/file.html"
+}
