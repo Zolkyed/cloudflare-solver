@@ -5,7 +5,7 @@ Listens on http://0.0.0.0:8191 (or PORT env var).
 
 POST /solve
   Body (JSON): {"sitekey": "...", "siteurl": "https://example.com"}
-  Response:    {"token": "...", "elapsed": 4.23}
+  Response:    {"token": "...", "useragent": "...", "elapsed": 4.23}
                {"error": "..."} on failure
 """
 
@@ -90,13 +90,20 @@ class Handler(BaseHTTPRequestHandler):
                 f"[service] solving sitekey={sitekey!r} url={siteurl!r} "
                 f"(active={_active_count}/{MAX_WORKERS})"
             )
-            token = solve(sitekey, siteurl, timeout=timeout)
+            result = solve(sitekey, siteurl, timeout=timeout)
             elapsed = round(time.time() - t0, 2)
-            token_preview = f"{token[:20]}..." if token else None
+            token_preview = f"{result.token[:20]}..." if result.token else None
             print(
                 f"[service] solved in {elapsed}s  token={token_preview}"
             )
-            self.send_json(200, {"token": token, "elapsed": elapsed})
+            self.send_json(
+                200,
+                {
+                    "token": result.token,
+                    "useragent": result.useragent,
+                    "elapsed": elapsed,
+                },
+            )
         except Exception as exc:
             elapsed = round(time.time() - t0, 2)
             print(f"[service] error after {elapsed}s: {exc}")

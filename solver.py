@@ -1,16 +1,25 @@
 import asyncio
 import json
 import random
+from dataclasses import dataclass
 from typing import Optional
 from browser import ensure_display, start_browser
 
 
-async def _solve(sitekey: str, siteurl: str, timeout: int) -> str:
+@dataclass
+class SolveResult:
+    token: str
+    useragent: str
+
+
+async def _solve(sitekey: str, siteurl: str, timeout: int) -> SolveResult:
     browser = await start_browser()
     token: Optional[str] = None
+    useragent = ""
 
     try:
         page = await browser.get(siteurl)
+        useragent = await page.evaluate("navigator.userAgent")
 
         await asyncio.sleep(random.uniform(2.0, 3.0))
 
@@ -85,7 +94,7 @@ async def _solve(sitekey: str, siteurl: str, timeout: int) -> str:
         # Check if already auto-solved (invisible widget)
         token = await get_token()
         if token:
-            return token
+            return SolveResult(token=token, useragent=useragent)
 
         # Wait up to 10s for the visible checkbox iframe to appear
         rect = None
@@ -125,10 +134,10 @@ async def _solve(sitekey: str, siteurl: str, timeout: int) -> str:
     if not token:
         raise TimeoutError(f"Turnstile token not obtained within {timeout}s")
 
-    return token
+    return SolveResult(token=token, useragent=useragent)
 
 
-def solve(sitekey: str, siteurl: str, timeout: int = 45) -> str:
+def solve(sitekey: str, siteurl: str, timeout: int = 45) -> SolveResult:
     import warnings
 
     with warnings.catch_warnings():
@@ -152,9 +161,9 @@ if __name__ == "__main__":
     try:
         sitekey = sys.argv[1]
         siteurl = sys.argv[2]
-        token = solve(sitekey, siteurl)
+        result = solve(sitekey, siteurl)
 
-        print(json.dumps({"token": token}))
+        print(json.dumps({"token": result.token, "useragent": result.useragent}))
 
     except Exception as exc:
         print(json.dumps({"error": str(exc)}))
