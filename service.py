@@ -1,3 +1,14 @@
+"""
+Cloudflare Turnstile Solver Service
+------------------------------------
+Listens on http://0.0.0.0:8191 (or PORT env var).
+
+POST /solve
+  Body (JSON): {"sitekey": "...", "siteurl": "https://example.com"}
+  Response:    {"token": "...", "elapsed": 4.23}
+               {"error": "..."} on failure
+"""
+
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -49,12 +60,12 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "invalid JSON"})
             return
 
-        sitekey = payload.get("sitekey", "").strip() or None
+        sitekey = payload.get("sitekey", "").strip()
         siteurl = payload.get("siteurl", "").strip()
         timeout = int(payload.get("timeout", 45))
 
-        if not siteurl:
-            self.send_json(400, {"error": "siteurl is required"})
+        if not sitekey or not siteurl:
+            self.send_json(400, {"error": "sitekey and siteurl are required"})
             return
 
         global _active_count, _queued_count
@@ -62,7 +73,7 @@ class Handler(BaseHTTPRequestHandler):
         with _count_lock:
             _queued_count += 1
         print(
-            f"[service] queued — has_sitekey={bool(sitekey)} url={siteurl!r} "
+            f"[service] queued — sitekey={sitekey!r} url={siteurl!r} "
             f"(active={_active_count}/{MAX_WORKERS} queued={_queued_count})"
         )
 
@@ -76,24 +87,16 @@ class Handler(BaseHTTPRequestHandler):
         t0 = time.time()
         try:
             print(
-                f"[service] solving has_sitekey={bool(sitekey)} url={siteurl!r} "
+                f"[service] solving sitekey={sitekey!r} url={siteurl!r} "
                 f"(active={_active_count}/{MAX_WORKERS})"
             )
-            result = solve(siteurl, sitekey=sitekey, timeout=timeout)
+            token = solve(sitekey, siteurl, timeout=timeout)
             elapsed = round(time.time() - t0, 2)
-            token_preview = f"{result.token[:20]}..." if result.token else None
+            token_preview = f"{token[:20]}..." if token else None
             print(
-                f"[service] solved in {elapsed}s  token={token_preview} "
-                f"cookies={len(result.cookies)}"
+                f"[service] solved in {elapsed}s  token={token_preview}"
             )
-            self.send_json(
-                200,
-                {
-                    "token": result.token,
-                    "cookies": result.cookies,
-                    "elapsed": elapsed,
-                },
-            )
+            self.send_json(200, {"token": token, "elapsed": elapsed})
         except Exception as exc:
             elapsed = round(time.time() - t0, 2)
             print(f"[service] error after {elapsed}s: {exc}")

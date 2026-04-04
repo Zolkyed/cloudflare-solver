@@ -1,52 +1,16 @@
 import asyncio
 import json
 import random
-from dataclasses import dataclass
 from typing import Optional
-from urllib.parse import urlparse
 from browser import ensure_display, start_browser
 
 
-@dataclass
-class SolveResult:
-    token: Optional[str]
-    cookies: dict[str, str]
-
-
-def _cookie_matches_site(cookie, siteurl: str) -> bool:
-    parsed = urlparse(siteurl)
-    hostname = (parsed.hostname or "").lower()
-    if not hostname:
-        return False
-
-    cookie_domain = (getattr(cookie, "domain", "") or "").lower().lstrip(".")
-    if not cookie_domain:
-        return False
-
-    return hostname == cookie_domain or hostname.endswith("." + cookie_domain)
-
-
-def _serialize_cookies(raw_cookies, siteurl: str) -> dict[str, str]:
-    cookies = {}
-
-    for cookie in raw_cookies:
-        if _cookie_matches_site(cookie, siteurl):
-            cookies[cookie.name] = cookie.value
-
-    return cookies
-
-async def _solve(sitekey: Optional[str], siteurl: str, timeout: int) -> SolveResult:
+async def _solve(sitekey: str, siteurl: str, timeout: int) -> str:
     browser = await start_browser()
     token: Optional[str] = None
-    raw_cookies = []
 
     try:
         page = await browser.get(siteurl)
-        if not sitekey:
-            raw_cookies = await browser.cookies.get_all()
-            return SolveResult(
-                token=None, cookies=_serialize_cookies(raw_cookies, siteurl)
-            )
 
         await asyncio.sleep(random.uniform(2.0, 3.0))
 
@@ -121,10 +85,7 @@ async def _solve(sitekey: Optional[str], siteurl: str, timeout: int) -> SolveRes
         # Check if already auto-solved (invisible widget)
         token = await get_token()
         if token:
-            raw_cookies = await browser.cookies.get_all()
-            return SolveResult(
-                token=token, cookies=_serialize_cookies(raw_cookies, siteurl)
-            )
+            return token
 
         # Wait up to 10s for the visible checkbox iframe to appear
         rect = None
@@ -158,18 +119,16 @@ async def _solve(sitekey: Optional[str], siteurl: str, timeout: int) -> SolveRes
                 continue
 
             await asyncio.sleep(0.3)
-
-        raw_cookies = await browser.cookies.get_all()
     finally:
         browser.stop()
 
     if not token:
         raise TimeoutError(f"Turnstile token not obtained within {timeout}s")
 
-    return SolveResult(token=token, cookies=_serialize_cookies(raw_cookies, siteurl))
+    return token
 
 
-def solve(siteurl: str, sitekey: Optional[str] = None, timeout: int = 45) -> SolveResult:
+def solve(sitekey: str, siteurl: str, timeout: int = 45) -> str:
     import warnings
 
     with warnings.catch_warnings():
@@ -181,21 +140,21 @@ if __name__ == "__main__":
     import sys
     import json
 
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 3:
         print(
             json.dumps(
-                {"error": "Usage: python solver.py <siteurl> [sitekey]"}
+                {"error": "Usage: python solver.py <sitekey> <siteurl>"}
             )
         )
         sys.exit(1)
 
     xvfb = ensure_display()
     try:
-        siteurl = sys.argv[1]
-        sitekey = sys.argv[2] if len(sys.argv) > 2 else None
-        result = solve(siteurl, sitekey=sitekey)
+        sitekey = sys.argv[1]
+        siteurl = sys.argv[2]
+        token = solve(sitekey, siteurl)
 
-        print(json.dumps({"token": result.token, "cookies": result.cookies}))
+        print(json.dumps({"token": token}))
 
     except Exception as exc:
         print(json.dumps({"error": str(exc)}))
